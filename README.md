@@ -1,4 +1,18 @@
-# Improving Factual Completeness and Consistency of Image-to-text Radiology Report Generation
+
+
+# My fork of Improving Factual Completeness and Consistency of Image-to-text Radiology Report Generation
+
+My changes are just to insert vision transformers into the model and observe the results.
+
+
+
+
+
+
+
+
+
+# Original readme
 
 The reference code of [Improving Factual Completeness and Consistency of Image-to-text Radiology Report Generation](https://arxiv.org/abs/2010.10042).
 

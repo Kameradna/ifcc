@@ -49,6 +49,14 @@ class ImageClassification(torch.nn.Module):
                 if fixed_weight:
                     cls.fix_layers(m)
                 return Sequential(*list(m.features.children())[:-1]), 512
+            elif name == 'vit_b_16':
+                m = models.vit_b_16(pretrained=pretrained)
+                if fixed_weight:
+                    cls.fix_layers(m)
+                print(Sequential(*list(m.features.children())))
+                print(Sequential(*list(m.features.children())[:-1]))
+                exit()
+                return Sequential(*list(m.features.children())[:-1]), 1024
             else:
                 raise ValueError('Unknown model {0}'.format(name))
         else:
