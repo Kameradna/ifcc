@@ -26,7 +26,7 @@ class MeshedTransformerEncoder(TransformerEncoder):
         output = src
         outputs = []
         for i in range(self.num_layers):
-            output = self.layers[i](output, src_mask=mask, src_key_padding_mask=src_key_padding_mask)
+            output = torch.utils.checkpoint(self.layers[i], output, src_mask=mask, src_key_padding_mask=src_key_padding_mask) #checkpointing for each encoder block
             outputs.append(output)
         output = torch.stack(outputs, dim=1)
         return output
@@ -341,6 +341,26 @@ class TransformerEncoderLayerWithMem(Module):
         src = self.norm2(src)
         return src
 
+class TransformerDecoderwithCheckpoint(TransformerDecoder): #my new class to redefine the forward method of TransformerDecoder to include layer checkpointing
+    __constants__ = ['norm']
+    def __init__(self, decoder_layer, num_layers, norm=None):
+        super(TransformerDecoderwithCheckpoint, self).__init__(self, decoder_layer, num_layers, norm=None)#inherits all from parent class except forward
+
+    def forward(self, tgt, memory, tgt_mask=None,
+                memory_mask=None, tgt_key_padding_mask=None,
+                memory_key_padding_mask=None):
+        output = tgt
+
+        for mod in self.layers:
+            output = torch.utils.checkpoint(mod, output, memory, tgt_mask=tgt_mask,
+                         memory_mask=memory_mask,
+                         tgt_key_padding_mask=tgt_key_padding_mask,
+                         memory_key_padding_mask=memory_key_padding_mask)
+
+        if self.norm is not None:
+            output = self.norm(output)
+
+        return output
 
 class M2Transformer(_TransformerCaptioner):
     def __init__(self, embeddings, feat_dim=512, max_word=32, multi_image=1, layer_norm=False, num_memory=40,
@@ -351,11 +371,11 @@ class M2Transformer(_TransformerCaptioner):
                                             teacher_forcing, image_model, image_pretrained, finetune_image,
                                             image_finetune_epoch, rl_opts, word_idxs, device, verbose)
         # Transformer Encoder
-        encoder_layer = torch.utils.checkpoint(TransformerEncoderLayerWithMem, feat_dim, nhead=8, nmem=num_memory)
+        encoder_layer = TransformerEncoderLayerWithMem(feat_dim, nhead=8, nmem=num_memory)
         self.encoder = MeshedTransformerEncoder(encoder_layer, num_layers=num_enc_layers)
         # Transformer Decoder
-        decoder_layer = torch.utils.checkpoint(MeshedTransformerMaxDecoderLayer, feat_dim, nhead=8, nlayer_enc=num_enc_layers)
-        self.decoder = TransformerDecoder(decoder_layer, num_layers=num_dec_layers)
+        decoder_layer = MeshedTransformerMaxDecoderLayer(feat_dim, nhead=8, nlayer_enc=num_enc_layers)
+        self.decoder = TransformerDecoderwithCheckpoint(decoder_layer, num_layers=num_dec_layers) #changed to my class with rewritten forward method
 
     def decode_beam(self, encoded_data, beam_size, allow_stop=True, recover_words=None, diversity_rate=0.0):
         return super(M2Transformer, self).decode_beam(encoded_data, beam_size, allow_stop, recover_words,
