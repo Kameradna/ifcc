@@ -26,7 +26,8 @@ class MeshedTransformerEncoder(TransformerEncoder):
         output = src
         outputs = []
         for i in range(self.num_layers):
-            output = torch.utils.checkpoint(self.layers[i], output, src_mask=mask, src_key_padding_mask=src_key_padding_mask) #checkpointing for each encoder block
+            # output = torch.utils.checkpoint(self.layers[i], output, src_mask=mask, src_key_padding_mask=src_key_padding_mask) #checkpointing for each encoder block
+            output = self.layers[i](output, src_mask=mask, src_key_padding_mask=src_key_padding_mask) #checkpointing for each encoder block
             outputs.append(output)
         output = torch.stack(outputs, dim=1)
         return output
@@ -352,7 +353,11 @@ class TransformerDecoderwithCheckpoint(TransformerDecoder): #my new class to red
         output = tgt
 
         for mod in self.layers:
-            output = torch.utils.checkpoint(mod, output, memory, tgt_mask=tgt_mask,
+            # output = torch.utils.checkpoint(mod, output, memory, tgt_mask=tgt_mask,
+            #              memory_mask=memory_mask,
+            #              tgt_key_padding_mask=tgt_key_padding_mask,
+            #              memory_key_padding_mask=memory_key_padding_mask)
+            output = mod(output, memory, tgt_mask=tgt_mask,
                          memory_mask=memory_mask,
                          tgt_key_padding_mask=tgt_key_padding_mask,
                          memory_key_padding_mask=memory_key_padding_mask)
