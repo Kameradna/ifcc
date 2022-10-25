@@ -91,7 +91,7 @@ def main(args):
                              cnnrnnrnn_simple_proj=args.cnnrnnrnn_simple_proj, sat_lstm_dim=args.sat_lstm_dim,
                              trans_image_pe=args.img_pe, trans_layers=args.trans_layers,
                              trans_enc_layers=args.trans_enc_layers, trans_layer_norm=args.trans_layer_norm,
-                             m2_memory=args.m2_memory, tienet_labels=args.tienet_labels, verbose=args.verbose)
+                             m2_memory=args.m2_memory, tienet_labels=args.tienet_labels, verbose=args.verbose, checkpointing=args.checkpointing)
     if device == 'gpu':
         model = model.cuda(0)
     optimizers, schedulers, batch_schedulers = Optimizers.get_optmizers(model, args.lr, args.lr_img, args.lr_step,
@@ -186,6 +186,7 @@ def parse_args():
     parser.add_argument('--cnnrnnrnn-topic-state', default=False, action='store_true', help='Use topic as an initial word LSTM state')
     parser.add_argument('--corpus', type=str, default='a', choices=['a', 'flickr30k', 'mimic-cxr', 'open-i'], help='Corpus name')
     parser.add_argument('--cuda', default=False, action='store_true', help='Use GPU')
+    parser.add_argument('--checkpoint', default=False, action='store_true', help='Use checkpointing')
     parser.add_argument('--entity-match', type=str, default=None, help='A path to reference entities')
     parser.add_argument('--entity-mode',type=str, default='nli-f', help='Entity match mode')
     parser.add_argument('--epochs', type=int, default=32, help='Epoch num')

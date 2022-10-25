@@ -19,15 +19,18 @@ import torch.utils.checkpoint
 
 
 class MeshedTransformerEncoder(TransformerEncoder):
-    def __init__(self, encoder_layer, num_layers):
+    def __init__(self, encoder_layer, num_layers, checkpointing=False):
         super(MeshedTransformerEncoder, self).__init__(encoder_layer, num_layers)
+        self.checkpointing = checkpointing
 
     def forward(self, src, mask=None, src_key_padding_mask=None):
         output = src
         outputs = []
         for i in range(self.num_layers):
-            # output = torch.utils.checkpoint(self.layers[i], output, src_mask=mask, src_key_padding_mask=src_key_padding_mask) #checkpointing for each encoder block
-            output = self.layers[i](output, src_mask=mask, src_key_padding_mask=src_key_padding_mask) #checkpointing for each encoder block
+            if self.checkpointing:
+                output = torch.utils.checkpoint.checkpoint(self.layers[i], output, src_mask=mask, src_key_padding_mask=src_key_padding_mask) #checkpointing for each encoder block
+            else:
+                output = self.layers[i](output, src_mask=mask, src_key_padding_mask=src_key_padding_mask) #checkpointing for each encoder block
             outputs.append(output)
         output = torch.stack(outputs, dim=1)
         return output
@@ -344,8 +347,9 @@ class TransformerEncoderLayerWithMem(Module):
 
 class TransformerDecoderwithCheckpoint(TransformerDecoder): #my new class to redefine the forward method of TransformerDecoder to include layer checkpointing
     __constants__ = ['norm']
-    def __init__(self, decoder_layer, num_layers, norm=None):
+    def __init__(self, decoder_layer, num_layers, norm=None, checkpointing=False):
         super(TransformerDecoderwithCheckpoint, self).__init__(self, decoder_layer, num_layers, norm=None)#inherits all from parent class except forward
+        self.checkpointing = checkpointing
 
     def forward(self, tgt, memory, tgt_mask=None,
                 memory_mask=None, tgt_key_padding_mask=None,
@@ -353,14 +357,16 @@ class TransformerDecoderwithCheckpoint(TransformerDecoder): #my new class to red
         output = tgt
 
         for mod in self.layers:
-            # output = torch.utils.checkpoint(mod, output, memory, tgt_mask=tgt_mask,
-            #              memory_mask=memory_mask,
-            #              tgt_key_padding_mask=tgt_key_padding_mask,
-            #              memory_key_padding_mask=memory_key_padding_mask)
-            output = mod(output, memory, tgt_mask=tgt_mask,
-                         memory_mask=memory_mask,
-                         tgt_key_padding_mask=tgt_key_padding_mask,
-                         memory_key_padding_mask=memory_key_padding_mask)
+            if self.checkpointing:
+                output = torch.utils.checkpoint.checkpoint(mod, output, memory, tgt_mask=tgt_mask,
+                            memory_mask=memory_mask,
+                            tgt_key_padding_mask=tgt_key_padding_mask,
+                            memory_key_padding_mask=memory_key_padding_mask)
+            else:
+                output = mod(output, memory, tgt_mask=tgt_mask,
+                            memory_mask=memory_mask,
+                            tgt_key_padding_mask=tgt_key_padding_mask,
+                            memory_key_padding_mask=memory_key_padding_mask)
 
         if self.norm is not None:
             output = self.norm(output)
@@ -371,16 +377,16 @@ class M2Transformer(_TransformerCaptioner):
     def __init__(self, embeddings, feat_dim=512, max_word=32, multi_image=1, layer_norm=False, num_memory=40,
                  num_enc_layers=6, num_dec_layers=6, teacher_forcing=False, image_model=None, image_pretrained=None,
                  finetune_image=False, image_finetune_epoch=None, rl_opts=None, word_idxs=None, device='gpu',
-                 verbose=False):
+                 verbose=False, checkpointing=False):
         super(M2Transformer, self).__init__(embeddings, feat_dim, max_word, multi_image, False, layer_norm,
                                             teacher_forcing, image_model, image_pretrained, finetune_image,
                                             image_finetune_epoch, rl_opts, word_idxs, device, verbose)
         # Transformer Encoder
         encoder_layer = TransformerEncoderLayerWithMem(feat_dim, nhead=8, nmem=num_memory)
-        self.encoder = MeshedTransformerEncoder(encoder_layer, num_layers=num_enc_layers)
+        self.encoder = MeshedTransformerEncoder(encoder_layer, num_layers=num_enc_layers, checkpointing=checkpointing)
         # Transformer Decoder
         decoder_layer = MeshedTransformerMaxDecoderLayer(feat_dim, nhead=8, nlayer_enc=num_enc_layers)
-        self.decoder = TransformerDecoderwithCheckpoint(decoder_layer, num_layers=num_dec_layers) #changed to my class with rewritten forward method
+        self.decoder = TransformerDecoderwithCheckpoint(decoder_layer, num_layers=num_dec_layers, checkpointing=checkpointing) #changed to my class with rewritten forward method
 
     def decode_beam(self, encoded_data, beam_size, allow_stop=True, recover_words=None, diversity_rate=0.0):
         return super(M2Transformer, self).decode_beam(encoded_data, beam_size, allow_stop, recover_words,
@@ -410,7 +416,7 @@ class M2Transformer(_TransformerCaptioner):
         else:
             x_nz, nz = x, None
         # Image features
-        x_nz = model(x_nz)
+        x_nz = model(x_nz) #can we apply gradient checkpointing? Should we? Doesn't matter while there is no learning rate right?
         x_nz = x_nz.flatten(start_dim=-2, end_dim=-1)
         x_nz = x_nz.permute(0, 2, 1)
         x_nz = relu(self.image_proj_l(x_nz))

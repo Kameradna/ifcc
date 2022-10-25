@@ -50,7 +50,15 @@ class ImageClassification(torch.nn.Module):
                     cls.fix_layers(m)
                 return Sequential(*list(m.features.children())[:-1]), 512
             elif name == 'vit_b_16':
-                m = models.vit_b_16(pretrained=pretrained)
+                m = models.vit_b_16(weights='IMAGENET1K_V1')
+                if fixed_weight:
+                    cls.fix_layers(m)
+                print(Sequential(*list(m.features.children())))
+                print(Sequential(*list(m.features.children())[:-1]))
+                exit()
+                return Sequential(*list(m.features.children())[:-1]), 1024
+            elif name == 'swin_b':
+                m = models.swin_b(weights='IMAGENET1K_V1')
                 if fixed_weight:
                     cls.fix_layers(m)
                 print(Sequential(*list(m.features.children())))
