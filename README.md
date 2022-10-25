@@ -4,7 +4,7 @@
 
 My changes are just to insert vision transformers into the model and observe the results.
 
-
+I suspect gradient checkpointing will be required for me to train this model on my compute resources (4xRTX 2070 SUPER)
 
 
 
