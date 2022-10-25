@@ -13,6 +13,11 @@ from torch.nn.parameter import Parameter
 from clinicgen.models.transformer import _TransformerCaptioner
 
 
+#my addition
+import torch.utils
+import torch.utils.checkpoint
+
+
 class MeshedTransformerEncoder(TransformerEncoder):
     def __init__(self, encoder_layer, num_layers):
         super(MeshedTransformerEncoder, self).__init__(encoder_layer, num_layers)
@@ -346,10 +351,10 @@ class M2Transformer(_TransformerCaptioner):
                                             teacher_forcing, image_model, image_pretrained, finetune_image,
                                             image_finetune_epoch, rl_opts, word_idxs, device, verbose)
         # Transformer Encoder
-        encoder_layer = TransformerEncoderLayerWithMem(feat_dim, nhead=8, nmem=num_memory)
+        encoder_layer = torch.utils.checkpoint(TransformerEncoderLayerWithMem, feat_dim, nhead=8, nmem=num_memory)
         self.encoder = MeshedTransformerEncoder(encoder_layer, num_layers=num_enc_layers)
         # Transformer Decoder
-        decoder_layer = MeshedTransformerMaxDecoderLayer(feat_dim, nhead=8, nlayer_enc=num_enc_layers)
+        decoder_layer = torch.utils.checkpoint(MeshedTransformerMaxDecoderLayer, feat_dim, nhead=8, nlayer_enc=num_enc_layers)
         self.decoder = TransformerDecoder(decoder_layer, num_layers=num_dec_layers)
 
     def decode_beam(self, encoded_data, beam_size, allow_stop=True, recover_words=None, diversity_rate=0.0):
